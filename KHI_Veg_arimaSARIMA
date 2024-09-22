@@ -1,0 +1,642 @@
+
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+
+import statsmodels.api as sm
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from pandas.plotting import autocorrelation_plot
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error, median_absolute_error, mean_squared_log_error
+
+!pip install pmdarima --quiet
+import pmdarima as pm
+
+%matplotlib inline
+
+import warnings
+warnings.filterwarnings('ignore')
+
+df = pd.read_csv('/content/monthly_data(1) A.csv')#https://drive.google.com/file/d/1AKKJmQDSTFMSPLIWBBDKVGgBC3AWvAro/view?usp=drive_link
+df.head()
+
+df.tail()
+
+
+
+df.describe()
+
+
+
+df.isna().sum()
+
+# Assuming 'Date' column contains the date values
+df['Date'] = pd.to_datetime(df['Date'])
+
+# Set 'Date' column as the index
+df.set_index('Date', inplace=True)
+
+# Check the index again
+print(df.index)
+
+
+df.plot(figsize = (10,5))
+plt.title('Monthly NDVI')
+plt.show()
+
+fig, (ax1, ax2) = plt.subplots(nrows = 2, ncols = 1, sharex = False, sharey = False, figsize = (10,5))
+df.hist(ax = ax1)
+df.plot(kind = 'kde', ax = ax2)
+plt.show()
+
+df.dropna(inplace=True)
+
+
+# Use forward fill to impute missing values
+df.fillna(method='ffill', inplace=True)
+
+
+decomposition = seasonal_decompose(df['ndvi'], period = 12, model = 'additive')
+plt.rcParams['figure.figsize'] = 10, 5
+decomposition.plot()
+plt.show()
+
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+# Assuming df['ndvi'] is your data
+sample_size = len(df['ndvi'])
+max_lags = sample_size // 2 - 1  # 50% of the sample size
+
+# Create the subplots
+fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=False, sharey=False, figsize=(10, 5))
+
+# Plot ACF and PACF with the adjusted number of lags
+ax1 = plot_acf(df['ndvi'], lags=max_lags, ax=ax1)
+ax2 = plot_pacf(df['ndvi'], lags=max_lags, ax=ax2)
+
+plt.subplots_adjust(hspace=0.5)
+plt.show()
+
+
+
+
+# Plot ACF and PACF
+sample_size = len(df['ndvi'])
+max_lags = min(40, sample_size // 2 - 1)
+
+fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
+plot_acf(df['ndvi'], lags=max_lags, ax=ax1)
+plot_pacf(df['ndvi'], lags=max_lags, ax=ax2)
+plt.subplots_adjust(hspace=0.5)
+plt.show()
+
+
+def adfuller_test(production):
+    result = adfuller(production)
+    labels = ['ADF Test Statistic','p-value','#Lags Used','#Observation Used']
+    for value,label in zip(result,labels):
+        print(label  + ': ' + str(value))
+    if result[1]<=0.05:
+        print('Strong evidence against the null hypothesis, hence REJECT Ho. and the series is Stationary')
+    else:
+        print('Weak evidence against null hypothesis, hence ACCEPT Ho. and the series is Not Stationary.')
+
+from statsmodels.tsa.stattools import adfuller
+
+def test_stationarity(series):
+    result = adfuller(series.dropna())
+    print('ADF Statistic:', result[0])
+    print('p-value:', result[1])
+    print('Critical Values:', result[4])
+
+# Assuming 'df' is your DataFrame and 'ndvi' is the column you want to test
+test_stationarity(df['ndvi']) # Replace df['ndvi'] with the actual time series you want to test
+
+
+
+# Assuming 'df' is your DataFrame and 'ndvi' is the time series column
+ts = df['ndvi']  # Assign your time series data to the variable 'ts'
+
+ts_diff = ts.diff().dropna()
+
+# Check stationarity of differenced data
+test_stationarity(ts_diff)
+
+
+from statsmodels.graphics.tsaplots import plot_acf
+import matplotlib.pyplot as plt
+
+# Assuming 'ts' is your time series data
+plot_acf(ts, lags=40)  # Adjust 'lags' as needed
+plt.title('Autocorrelation Function (ACF) Plot')
+plt.show()
+
+
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_pacf
+
+# Assuming df['ndvi'] is your time series data
+# Check the sample size
+sample_size = len(df['ndvi'])
+max_lags = min(40, sample_size // 2 - 1)  # Adjust number of lags as needed
+
+# Create the PACF plot
+plt.figure(figsize=(10, 5))
+# Changed 'ywunbiased' to 'yw' for a valid method
+plot_pacf(df['ndvi'], lags=max_lags, method='yw')
+plt.title('Partial Autocorrelation Function (PACF)')
+plt.xlabel('Lags')
+plt.ylabel('PACF')
+plt.show()
+
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+# Assuming 'ts' is your time series data
+plt.figure(figsize=(12, 10))
+
+# Plot ACF
+plt.subplot(211)
+plot_acf(ts, lags=40, ax=plt.gca())  # Adjust 'lags' as needed
+plt.title('Autocorrelation Function (ACF) Plot')
+
+# Plot PACF
+# Assuming df['ndvi'] is your time series data
+sample_size = len(df['ndvi'])
+max_lags = min(40, sample_size // 2 - 1)  # Adjust number of lags as needed
+
+plt.subplot(212)
+plot_pacf(df['ndvi'], lags=max_lags, method='yw', ax=plt.gca())
+plt.title('Partial Autocorrelation Function (PACF)')
+plt.xlabel('Lags')
+plt.ylabel('PACF')
+
+plt.tight_layout()
+plt.show()
+
+
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(12, 6))
+plt.subplot(211)
+plt.plot(ts)
+plt.title('Original Time Series')
+
+plt.subplot(212)
+plt.plot(ts_diff)
+plt.title('Differenced Time Series')
+
+plt.tight_layout()
+plt.show()
+
+
+
+
+
+
+from statsmodels.tsa.arima.model import ARIMA
+
+# Define the order of the ARIMA model
+p = 0  # Example value for the autoregressive component
+d = 1  # Example value for the integrated component
+q = 2  # Example value for the moving average component
+
+# Fit ARIMA model
+model = ARIMA(ts, order=(p, d, q))
+model_fit = model.fit()
+
+# Print summary
+print(model_fit.summary())
+
+from statsmodels.tsa.arima.model import ARIMA
+
+# Fit ARIMA model (adjust p, d, q as necessary)
+model = ARIMA(ts, order=(p, d, q))
+model_fit = model.fit()
+
+# Print summary
+print(model_fit.summary())
+
+
+adfuller_test(df['ndvi'])
+
+df. info()
+
+print(df.info())
+
+df1 = df['ndvi'].diff().diff(12).dropna()
+
+
+
+
+import pandas as pd
+
+# Convert 'column_name' to float, coercing errors to NaN
+df['ndvi'] = pd.to_numeric(df['ndvi'], errors='coerce')
+
+
+# Drop rows with NaN values
+df.dropna(subset=['ndvi'], inplace=True)
+
+
+import pandas as pd
+
+# Sample DataFrame for illustration
+# df = pd.read_csv('your_file.csv')  # if loading from a file
+
+# Step 1: Check the column names
+print("Column names:", df.columns)
+
+# Step 2: Verify that 'column_name' exists
+if 'column_name' in df.columns:
+    # Step 3: Convert the column to float
+    df['column_name'] = df['column_name'].astype(float)
+else:
+    print("Error: 'column_name' not found in DataFrame columns")
+
+
+print(df.head())
+
+
+df.columns = df.columns.str.strip()
+
+# Now try converting the column to float again
+if 'ndvi' in df.columns:
+    df['ndvi'] = df['ndvi'].astype(float)
+else:
+    print("Error: 'ndvi' not found in DataFrame columns after stripping whitespaces")
+
+
+df['ndvi'] = df['ndvi'].astype(float)
+
+
+!pip install statsmodels
+import pandas as pd
+from statsmodels.tsa.stattools import adfuller
+
+# Assuming 'df' is already defined and 'ndvi' column exists and is of float type
+
+# Perform the Augmented Dickey-Fuller test
+result = adfuller(df['ndvi']) # Use adfuller instead of adfuller_test
+print(result)
+
+!pip install statsmodels
+import pandas as pd
+from statsmodels.tsa.stattools import adfuller
+
+# Assuming 'df' is already defined and 'ndvi' column exists
+
+# Check for missing or infinite values
+print("Number of missing values:", df['ndvi'].isnull().sum())
+print("Number of infinite values:", np.isinf(df['ndvi']).sum())
+
+# Handle missing or infinite values (replace with appropriate values or remove rows)
+# Example: Replace infinite values with NaN, then drop rows with NaN
+df.replace([np.inf, -np.inf], np.nan, inplace=True)
+df.dropna(inplace=True)
+
+# Perform the Augmented Dickey-Fuller test
+result = adfuller(df['ndvi'])
+print(result)
+
+adfuller_test(df['ndvi'])
+
+df1
+
+
+df1.plot(figsize=(10,5))
+plt.title('Monthly NDVI')
+plt.show()
+
+fig, (ax1, ax2) = plt.subplots(nrows = 2, ncols = 1, sharex = False, sharey = False, figsize = (10,5))
+
+ax1 = autocorrelation_plot(df['ndvi'], ax = ax1)
+ax1.set_title('Non - Stationary Data')
+
+ax2 = autocorrelation_plot(df['ndvi'], ax = ax2)
+ax2.set_title('Stationary Data')
+
+plt.subplots_adjust(hspace = 0.5)
+plt.show()
+
+from pandas.plotting import autocorrelation_plot
+
+# Original (non-stationary) plot
+fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
+autocorrelation_plot(df['ndvi'], ax=ax1)
+ax1.set_title('Non-Stationary Data')
+
+# Differenced data for stationarity
+df_diff = df['ndvi'].diff().dropna()
+autocorrelation_plot(df_diff, ax=ax2)
+ax2.set_title('Stationary Data')
+
+plt.subplots_adjust(hspace=0.5)
+plt.show()
+
+
+from pandas.plotting import autocorrelation_plot
+
+# Original (non-stationary) plot
+fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, figsize=(10, 5))
+autocorrelation_plot(df['ndvi'], ax=ax1)
+ax1.set_title('Non-Stationary Data')
+
+# Differenced data for stationarity
+df_diff = df['ndvi'].diff().dropna()
+autocorrelation_plot(df_diff, ax=ax2)
+ax2.set_title('Stationary Data')
+
+plt.subplots_adjust(hspace=0.5)
+plt.show()
+
+
+import matplotlib.pyplot as plt
+from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+
+# Check the sample size
+sample_size = len(df['ndvi'])
+max_lags = min(40, sample_size // 2 - 1)  # Ensure lags are within the acceptable range
+
+# Create the subplots
+fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1, sharex=False, sharey=False, figsize=(10, 5))
+
+# Plot ACF and PACF with the adjusted number of lags
+ax1 = plot_acf(df['ndvi'], lags=max_lags, ax=ax1)
+ax2 = plot_pacf(df['ndvi'], lags=max_lags, ax=ax2)
+
+plt.subplots_adjust(hspace=0.5)
+plt.show()
+
+
+model = pm.auto_arima(df['ndvi'], d = 1, D = 1,
+                      seasonal = True, m = 12,
+                      start_p = 0, start_q = 0, max_order = 6, test = 'adf', trace = True)
+
+model.summary()
+
+train = df[:int(0.85*(len(df)))]
+test = df[int(0.85*(len(df))):]
+
+train.shape, test.shape
+
+model = SARIMAX(train['ndvi'],
+                order = (0,1,2), seasonal_order = (0,1,2,12))
+results = model.fit(disp = False)
+results.summary()
+
+results.plot_diagnostics(figsize = (15, 5))
+plt.subplots_adjust(hspace = 0.5)
+plt.show()
+
+start = len(train)
+end = len(train) + len(test) - 1
+predictions = results.predict(start = start, end = end, dynamic = False, typ = 'levels').rename('SARIMA(0,1,2)(0,1,2,12) Test Predictions')
+
+# Inspect predictions and test['ndvi']
+print(predictions)
+print(test['ndvi'])
+
+
+# Ensure that predictions and test['ndvi'] have the same length
+print(f"Length of predictions: {len(predictions)}")
+print(f"Length of test['ndvi']: {len(test['ndvi'])}")
+
+if len(predictions) != len(test['ndvi']):
+    raise ValueError("Length mismatch between predictions and test['ndvi']")
+
+# Iterate over the predictions and expected values using iloc
+for i in range(len(predictions)):
+    try:
+        predicted_value = predictions.iloc[i]
+        expected_value = test['ndvi'].iloc[i]
+        print(f"predicted = {predicted_value:<11.10}, expected = {expected_value}")
+    except KeyError as e:
+        print(f"KeyError at index {i}: {e}")
+    except IndexError as e:
+        print(f"IndexError at index {i}: {e}")
+
+
+
+
+import numpy as np
+
+# Ensure that predictions and test['ndvi'] have the same length
+if len(predictions) != len(test['ndvi']):
+    raise ValueError("Length mismatch between predictions and test['ndvi']")
+
+# Calculate RMSE
+rmse = np.sqrt(np.mean((predictions - test['ndvi']) ** 2))
+print(f"Root Mean Squared Error (RMSE): {rmse:.4f}")
+
+mae = np.mean(np.abs(predictions - test['ndvi']))
+print(f"Mean Absolute Error (MAE): {mae:.4f}")
+
+from sklearn.metrics import r2_score
+r2 = r2_score(test['ndvi'], predictions)
+print(f"R-squared (R2): {r2:.4f}")
+
+title = 'Monthly ndvi'
+ax = test['ndvi'].plot(legend = True, figsize = (12,6), title = title)
+predictions.plot(legend = True)
+ax.autoscale(axis = 'x',tight = True)
+
+evaluation_results = pd.DataFrame({'r2_score': r2_score(test['ndvi'], predictions)}, index=[0])
+evaluation_results['mean_absolute_error'] = mean_absolute_error(test['ndvi'], predictions)
+evaluation_results['mean_squared_error'] = mean_squared_error(test['ndvi'], predictions)
+evaluation_results['mean_absolute_percentage_error'] = np.mean(np.abs(predictions - test['ndvi'])/np.abs(test['ndvi']))*100
+
+evaluation_results
+
+# Example of fitting SARIMA model with different initialization and optimization methods
+order = (0, 1, 2)  # Replace with your desired ARIMA order
+seasonal_order = (0, 1, 2, 12)  # Replace with your desired seasonal ARIMA order
+model = SARIMAX(df['ndvi'], order=order, seasonal_order=seasonal_order)
+results = model.fit(initialization='approximate_diffuse', method='lbfgs')
+
+# Example of fitting SARIMA model with different initialization and optimization methods
+model = SARIMAX(df['ndvi'], order=order, seasonal_order=seasonal_order)
+results = model.fit(initialization='approximate_diffuse', method='lbfgs')
+
+
+# Example of fitting SARIMA model with different initialization and optimization methods
+# Define the order and seasonal_order variables
+order = (0, 1, 2)  # Example order, replace with your desired values
+seasonal_order = (0, 1, 2, 12)  # Example seasonal order, replace with your desired values
+
+model = SARIMAX(df['ndvi'], order=order, seasonal_order=seasonal_order)
+results = model.fit(initialization='approximate_diffuse', method='lbfgs')
+
+print(len(df))
+print(df.index.min(), df.index.max())
+
+print(df.index.min(), df.index.max())
+
+# Convert the index of your DataFrame to DatetimeIndex if it's not already
+df.index = pd.to_datetime(df.index)
+
+# Now try getting the prediction
+forecast = results.get_prediction(start='2023-01-01', end='2025-12-30')
+idx = np.arange(len(forecast.predicted_mean))
+
+forecast_values = forecast.predicted_mean
+forecast_ci = forecast.conf_int()
+
+fig, ax = plt.subplots()
+df.plot(ax = ax, label='observed')
+forecast_values.plot(ax = ax, label = 'Predicted', alpha = 0.7)
+ax.set_xlabel('Date')
+ax.set_ylabel('Value')
+plt.legend()
+ax.set_title('Observed and Forecast NDVI')
+plt.show()
+
+
+df
+
+print(df.index)
+
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+# Fit SARIMA model
+order = (1, 1, 1)  # Example order, you may need to tune these parameters
+seasonal_order = (1, 1, 1, 12)  # Example seasonal order, adjust as necessary
+model = SARIMAX(df['ndvi'], order=order, seasonal_order=seasonal_order)
+results = model.fit()
+
+# Generate predictions
+forecast = results.get_prediction(start=0, end=len(df) + 36)  # Adjust steps as needed for the number of forecast periods
+forecast_values = forecast.predicted_mean
+forecast_ci = forecast.conf_int()
+
+# Plot the observed data
+fig, ax = plt.subplots()
+df.plot(ax=ax, label='Observed')
+forecast_values.plot(ax=ax, label='Predicted', alpha=0.7)
+ax.set_xlabel('Date')
+ax.set_ylabel('Value')
+plt.legend()
+ax.set_title(' NDVI observed and pridicted')
+
+plt.show()
+
+
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+# Assuming 'results' is your fitted SARIMA model
+# Create a date range for the forecast period
+forecast_start_date = pd.to_datetime('2023-01-01')
+forecast_end_date = pd.to_datetime('2025-12-31')
+forecast_dates = pd.date_range(start=forecast_start_date, end=forecast_end_date, freq='M')
+
+# Generate predictions
+forecast = results.get_forecast(steps=len(forecast_dates))
+forecast_values = forecast.predicted_mean
+forecast_ci = forecast.conf_int()
+
+# Create a DataFrame for the forecasted values
+forecast_df = pd.DataFrame({
+    'Date': forecast_dates,
+    'Predicted Mean': forecast_values,
+    'Lower CI': forecast_ci.iloc[:, 0],
+    'Upper CI': forecast_ci.iloc[:, 1]
+})
+
+# Display the forecast DataFrame
+print(forecast_df)
+
+# Optionally, save the forecast to a CSV file
+forecast_df.to_csv('monthly_ndvi_forecast_2023_2025.csv', index=False)
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+# Assuming 'results' is your fitted SARIMA model
+# Create a date range for the forecast period
+forecast_start_date = pd.to_datetime('2023-01-01')
+forecast_end_date = pd.to_datetime('2025-12-31')
+forecast_dates = pd.date_range(start=forecast_start_date, end=forecast_end_date, freq='M')
+
+# Generate predictions
+forecast = results.get_forecast(steps=len(forecast_dates))
+forecast_values = forecast.predicted_mean
+forecast_ci = forecast.conf_int()
+
+# Create a DataFrame for the forecasted values
+forecast_df = pd.DataFrame({
+    'Date': forecast_dates,
+    'Predicted Mean': forecast_values,
+    'Lower CI': forecast_ci.iloc[:, 0],
+    'Upper CI': forecast_ci.iloc[:, 1]
+})
+
+# Plotting
+plt.figure(figsize=(14, 7))
+plt.plot(forecast_df['Date'], forecast_df['Predicted Mean'], label='Predicted NDVI', color='blue')
+plt.fill_between(forecast_df['Date'], forecast_df['Lower CI'], forecast_df['Upper CI'], color='blue', alpha=0.2)
+plt.xlabel('Date')
+plt.ylabel('NDVI')
+plt.title('Monthly NDVI Forecast with Confidence Intervals (2023-2025)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+
+
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+# Assuming 'results' is your fitted SARIMA model and 'df' contains historical data
+# Create a date range for the forecast period
+forecast_start_date = pd.to_datetime('2023-01-01')
+forecast_end_date = pd.to_datetime('2025-12-31')
+forecast_dates = pd.date_range(start=forecast_start_date, end=forecast_end_date, freq='M')
+
+# Generate predictions
+forecast = results.get_forecast(steps=len(forecast_dates))
+forecast_values = forecast.predicted_mean
+forecast_ci = forecast.conf_int()
+
+# Create a DataFrame for the forecasted values
+forecast_df = pd.DataFrame({
+    'Date': forecast_dates,
+    'Predicted Mean': forecast_values,
+    'Lower CI': forecast_ci.iloc[:, 0],
+    'Upper CI': forecast_ci.iloc[:, 1]
+})
+
+# Plotting
+plt.figure(figsize=(14, 7))
+
+# Plot historical data
+plt.plot(df.index, df['ndvi'], label='Historical NDVI', color='black')
+
+# Plot forecasted data
+plt.plot(forecast_df['Date'], forecast_df['Predicted Mean'], label='Predicted NDVI', color='blue')
+plt.fill_between(forecast_df['Date'], forecast_df['Lower CI'], forecast_df['Upper CI'], color='blue', alpha=0.2)
+
+plt.xlabel('Date')
+plt.ylabel('NDVI')
+plt.title('Historical and Forecasted Monthly NDVI with Confidence Intervals (2023-2025)')
+plt.legend()
+plt.grid(True)
+plt.show()
